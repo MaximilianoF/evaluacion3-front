@@ -1,126 +1,136 @@
 import { useState, useEffect } from "react";
-import "./App.css";
+import "./app.css"
 
 function App() {
-  const [students, setStudents] = useState([]);
-  const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [grade, setGrade] = useState("");
-  const [errors, setErrors] = useState({});
-  const [editingIndex, setEditingIndex] = useState(null);
-
-  useEffect(() => {
+  const [students, setStudents] = useState(() => {
     const saved = localStorage.getItem("students");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      const formatted = parsed.map(s => ({
-        name: s.name,
-        subject: s.subject,
-        grade: parseFloat(s.grade)
-      }));
-      setStudents(formatted);
-    }
-  }, []);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [form, setForm] = useState({ name: "", lastName: "", subject: "", grade: "" });
+  const [editIndex, setEditIndex] = useState(null);
 
   useEffect(() => {
-    localStorage.setItem("students", JSON.stringify(students));  
+    localStorage.setItem("students", JSON.stringify(students));
   }, [students]);
 
-  const validate = () => {
-    const newErrors = {};
-    if (!name) newErrors.name = "El nombre es obligatorio.";
-    if (!subject) newErrors.subject = "La asignatura es obligatoria.";
-    if (grade === "") newErrors.grade = "El promedio es obligatorio.";
-    else if (grade < 1 || grade > 7) newErrors.grade = "El promedio debe estar entre 1.0 y 7.0.";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    if (["name", "lastName", "subject"].includes(name)) {
+      if (/\d/.test(value)) return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    const { name, lastName, subject, grade } = form;
+    const parsedGrade = parseFloat(grade);
 
-    const newStudent = { name, subject, grade: parseFloat(grade) };
-
-    if (editingIndex !== null) {
-      const updated = [...students];
-      updated[editingIndex] = newStudent;
-      setStudents(updated);
-      setEditingIndex(null);
-    } else {
-      setStudents([...students, newStudent]);
+    if (!name || !lastName || !subject || isNaN(parsedGrade) || parsedGrade < 1 || parsedGrade > 7) {
+      alert("Por favor completa todos los campos con datos válidos.");
+      return;
     }
 
-    setName("");
-    setSubject("");
-    setGrade("");
-    setErrors({});
+    const newStudent = { name, lastName, subject, grade: parsedGrade };
+    const updatedStudents = editIndex !== null
+      ? students.map((s, i) => (i === editIndex ? newStudent : s))
+      : [...students, newStudent];
+
+    setStudents(updatedStudents);
+    setForm({ name: "", lastName: "", subject: "", grade: "" });
+    setEditIndex(null);
   };
 
-  const editStudent = (index) => {
-    const s = students[index];
-    setName(s.name);
-    setSubject(s.subject);
-    setGrade(s.grade);
-    setEditingIndex(index);
+  const handleEdit = (index) => {
+    const student = students[index];
+    setForm(student);
+    setEditIndex(index);
   };
 
-  const deleteStudent = (index) => {
-    const updated = [...students];
-    updated.splice(index, 1);
-    setStudents(updated);
+  const handleDelete = (index) => {
+    if (confirm("¿Estás seguro de eliminar este estudiante?")) {
+      const updated = [...students];
+      updated.splice(index, 1);
+      setStudents(updated);
+    }
+  };
+
+  const average = students.length
+    ? (students.reduce((acc, s) => acc + s.grade, 0) / students.length).toFixed(2)
+    : "N/A";
+
+  const getApreciacion = (grade) => {
+    if (grade >= 6.5) return "destacado";
+    if (grade >= 5.6) return "buen trabajo";
+    if (grade >= 4.0) return "con mejora";
+    return "deficiente";
+  };
+
+  const stats = {
+    total: students.length,
+    mustTakeExam: students.filter((s) => s.grade < 5).length,
+    exempted: students.filter((s) => s.grade >= 5).length,
   };
 
   return (
-    <div className="container">
-      <h2>Evaluación de Alumnos</h2>
+    <div className="app">
+      <h2>Notas Asignatura Front-End</h2>
+      <div id="average">Promedio general del curso: {average}</div>
+      <div id="stats">
+        <p>Total de estudiantes: {stats.total}</p>
+        <p>Estudiantes que deben rendir examen: {stats.mustTakeExam}</p>
+        <p>Estudiantes eximidos: {stats.exempted}</p>
+      </div>
 
-      <div className="card">
-        <div className="card-title">
-          {editingIndex !== null ? "Editar Evaluación" : "Agregar Nueva Evaluación"}
+      <form onSubmit={handleSubmit} id="studentForm">
+        <div>
+          <label>Nombre:</label>
+          <input type="text" name="name" value={form.name} onChange={handleChange} required />
         </div>
-        <form onSubmit={handleSubmit}>
-          <label>Nombre del Alumno:</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-          <p className="error">{errors.name}</p>
-
+        <div>
+          <label>Apellido:</label>
+          <input type="text" name="lastName" value={form.lastName} onChange={handleChange} required />
+        </div>
+        <div>
           <label>Asignatura:</label>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} />
-          <p className="error">{errors.subject}</p>
+          <input type="text" name="subject" value={form.subject} onChange={handleChange} required />
+        </div>
+        <div>
+          <label>Nota:</label>
+          <input type="number" name="grade" step="0.1" min="1" max="7" value={form.grade} onChange={handleChange} required />
+        </div>
+        <button type="submit">{editIndex !== null ? "Actualizar" : "Guardar"}</button>
+      </form>
 
-          <label>Promedio (1.0 - 7.0):</label>
-          <input
-            type="number"
-            step="0.1"
-            value={grade}
-            onChange={(e) => setGrade(e.target.value)}
-          />
-          <p className="error">{errors.grade}</p>
-
-          <button type="submit" className="save">
-            {editingIndex !== null ? "Actualizar Evaluación" : "Agregar Evaluación"}
-          </button>
-        </form>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Evaluaciones Guardadas</div>
-        {students.length === 0 ? (
-          <p>No hay evaluaciones guardadas aún. ¡Agrega una!</p>
-        ) : (
-          students.map((s, i) => (
-            <div className="evaluation-item" key={i}>
-              <strong>Alumno: {s.name}</strong>
-              <div>Asignatura: {s.subject}</div>
-              <div>Promedio: {s.grade}</div>
-              <div style={{ marginTop: "10px" }}>
-                <button onClick={() => editStudent(i)} className="edit">Editar</button>
-                <button onClick={() => deleteStudent(i)} className="delete">Eliminar</button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <table id="studentTable">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Apellido</th>
+            <th>Asignatura</th>
+            <th>Nota</th>
+            <th>Escala de Apreciación</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {students.map((s, i) => (
+            <tr key={i}>
+              <td>{s.name}</td>
+              <td>{s.lastName}</td>
+              <td>{s.subject}</td>
+              <td>{s.grade.toFixed(1)}</td>
+              <td>{getApreciacion(s.grade)}</td>
+              <td>
+                <button onClick={() => handleEdit(i)}>Editar</button>
+                <button onClick={() => handleDelete(i)}>Eliminar</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
